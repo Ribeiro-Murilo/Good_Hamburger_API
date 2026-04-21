@@ -1,4 +1,5 @@
 using GoodHamburgerAPI.Application.DTOs;
+using GoodHamburgerAPI.Domain.Entities;
 using GoodHamburgerAPI.Infrastructure.Cache;
 using GoodHamburgerAPI.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,11 @@ public class PedidoService : IPedidoService
 
         foreach (var item in request.Itens)
         {
+            if (item.Quantidade <= 0)
+            {
+                throw new InvalidOperationException("pedido inválido.");
+            }
+
             if (itensDicionario.ContainsKey(item.Id))
             {
                 itensDicionario[item.Id] += item.Quantidade;
@@ -80,18 +86,16 @@ public class PedidoService : IPedidoService
             throw new InvalidOperationException("recurso não encontrado.");
         }
 
-        var itensDicionario = pedido.Itens.ToDictionary(i => i.Id, i => i.Quantidade);
+        var itensDicionario = new Dictionary<int, int>();
 
         foreach (var item in request.Itens)
         {
-            if (itensDicionario.ContainsKey(item.Id))
+            if (item.Quantidade <= 0)
             {
-                itensDicionario[item.Id] += item.Quantidade;
+                continue;
             }
-            else
-            {
-                itensDicionario[item.Id] = item.Quantidade;
-            }
+
+            itensDicionario[item.Id] = item.Quantidade;
         }
 
         var itensAtualizados = new List<ItemPedido>();
@@ -124,18 +128,27 @@ public class PedidoService : IPedidoService
         await _redisService.SetAsync($"pedido:{pedidoId}", pedido);
     }
 
-    private class Pedido
+    public async Task<PedidoGetResponseDto> GetPedidoAsync(Guid pedidoId)
     {
-        public Guid Id { get; set; }
-        public List<ItemPedido> Itens { get; set; } = [];
-        public bool ComDesconto { get; set; }
+        var pedido = await _redisService.GetAsync<Pedido>($"pedido:{pedidoId}");
+
+        if (pedido == null)
+        {
+            throw new InvalidOperationException("recurso não encontrado.");
+        }
+
+        return new PedidoGetResponseDto
+        {
+            Id = pedido.Id,
+            Itens = pedido.Itens.Select(i => new ItemPedidoResponseDto
+            {
+                Id = i.Id,
+                Nome = i.Nome,
+                Valor = i.Valor,
+                Quantidade = i.Quantidade
+            }).ToList(),
+            ComDesconto = pedido.ComDesconto
+        };
     }
 
-    private class ItemPedido
-    {
-        public int Id { get; set; }
-        public string Nome { get; set; } = string.Empty;
-        public decimal Valor { get; set; }
-        public int Quantidade { get; set; }
-    }
 }

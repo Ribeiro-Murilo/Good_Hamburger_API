@@ -67,4 +67,25 @@ public class PedidosController : ControllerBase
             throw;
         }
     }
+
+    [HttpGet("api/pedidos/{id}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PedidoGetResponseDto>> GetPedido(Guid id)
+    {
+        try
+        {
+            var response = await _pedidoService.GetPedidoAsync(id);
+            return Ok(response);
+        }
+        catch (InvalidOperationException ex)
+        {
+            if (ex.Message == "recurso não encontrado.")
+            {
+                return NotFound(new { mensagem = ex.Message });
+            }
+
+            throw;
+        }
+    }
 }

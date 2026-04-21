@@ -1,18 +1,13 @@
-namespace GoodHamburgerAPI.Application.DTOs;
+namespace GoodHamburgerAPI.Domain.Entities;
 
-public class PedidoResponseDto
+public class Pedido
 {
     public Guid Id { get; set; }
-}
-
-public class PedidoGetResponseDto
-{
-    public Guid Id { get; set; }
-    public List<ItemPedidoResponseDto> Itens { get; set; } = [];
+    public List<ItemPedido> Itens { get; set; } = [];
     public bool ComDesconto { get; set; }
 }
 
-public class ItemPedidoResponseDto
+public class ItemPedido
 {
     public int Id { get; set; }
     public string Nome { get; set; } = string.Empty;
