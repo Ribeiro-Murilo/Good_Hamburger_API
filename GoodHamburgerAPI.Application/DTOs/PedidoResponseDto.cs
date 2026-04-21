@@ -10,6 +10,9 @@ public class PedidoGetResponseDto
     public Guid Id { get; set; }
     public List<ItemPedidoResponseDto> Itens { get; set; } = [];
     public bool ComDesconto { get; set; }
+    public decimal ValorTotal { get; set; }
+    public decimal ValorFinal { get; set; }
+    public bool ValorComDesconto { get; set; }
 }
 
 public class ItemPedidoResponseDto

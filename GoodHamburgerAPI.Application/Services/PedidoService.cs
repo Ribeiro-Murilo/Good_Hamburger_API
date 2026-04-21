@@ -25,7 +25,7 @@ public class PedidoService : IPedidoService
         {
             if (item.Quantidade <= 0)
             {
-                throw new InvalidOperationException("pedido inválido.");
+                throw new InvalidOperationException("quantidade dos itens do pedido deve ser maior que zero.");
             }
 
             if (itensDicionario.ContainsKey(item.Id))
@@ -39,6 +39,7 @@ public class PedidoService : IPedidoService
         }
 
         var itensComDetalhes = new List<ItemPedido>();
+        decimal valorTotal = 0;
 
         foreach (var itemId in itensDicionario.Keys)
         {
@@ -46,12 +47,12 @@ public class PedidoService : IPedidoService
 
             if (item == null)
             {
-                throw new InvalidOperationException("recurso não encontrado.");
+                throw new InvalidOperationException("item do pedido não encontrado no menu.");
             }
 
             if (!item.Ativo)
             {
-                throw new InvalidOperationException("pedido inválido.");
+                throw new InvalidOperationException("item do pedido não encontrado no menu.");
             }
 
             itensComDetalhes.Add(new ItemPedido
@@ -61,6 +62,8 @@ public class PedidoService : IPedidoService
                 Valor = item.Preco,
                 Quantidade = itensDicionario[itemId]
             });
+
+            valorTotal += item.Preco * itensDicionario[itemId];
         }
 
         var pedidoId = Guid.NewGuid();
@@ -69,7 +72,11 @@ public class PedidoService : IPedidoService
         {
             Id = pedidoId,
             Itens = itensComDetalhes,
-            ComDesconto = false
+            ComDesconto = false,
+            CriadoEm = DateTime.UtcNow,
+            AtualizadoEm = DateTime.UtcNow,
+            ValorSemDesconto = valorTotal,
+            ValorFinal = valorTotal
         };
 
         await _redisService.SetAsync($"pedido:{pedidoId}", pedidoRedis);
@@ -83,7 +90,7 @@ public class PedidoService : IPedidoService
 
         if (pedido == null)
         {
-            throw new InvalidOperationException("recurso não encontrado.");
+            throw new InvalidOperationException("pedido não encontrado.");
         }
 
         var itensDicionario = new Dictionary<int, int>();
@@ -92,13 +99,14 @@ public class PedidoService : IPedidoService
         {
             if (item.Quantidade <= 0)
             {
-                continue;
+                throw new InvalidOperationException("quantidade dos itens do pedido deve ser maior que zero.");
             }
 
             itensDicionario[item.Id] = item.Quantidade;
         }
 
         var itensAtualizados = new List<ItemPedido>();
+        decimal valorTotal = 0;
 
         foreach (var itemId in itensDicionario.Keys)
         {
@@ -106,12 +114,12 @@ public class PedidoService : IPedidoService
 
             if (item == null)
             {
-                throw new InvalidOperationException("recurso não encontrado.");
+                throw new InvalidOperationException("item do pedido não encontrado no menu.");
             }
 
             if (!item.Ativo)
             {
-                throw new InvalidOperationException("pedido inválido.");
+                throw new InvalidOperationException("item do pedido não encontrado no menu.");
             }
 
             itensAtualizados.Add(new ItemPedido
@@ -121,9 +129,14 @@ public class PedidoService : IPedidoService
                 Valor = item.Preco,
                 Quantidade = itensDicionario[itemId]
             });
+
+            valorTotal += item.Preco * itensDicionario[itemId];
         }
 
         pedido.Itens = itensAtualizados;
+        pedido.AtualizadoEm = DateTime.UtcNow;
+        pedido.ValorSemDesconto = valorTotal;
+        pedido.ValorFinal = valorTotal;
 
         await _redisService.SetAsync($"pedido:{pedidoId}", pedido);
     }
@@ -134,8 +147,10 @@ public class PedidoService : IPedidoService
 
         if (pedido == null)
         {
-            throw new InvalidOperationException("recurso não encontrado.");
+            throw new InvalidOperationException("pedido não encontrado.");
         }
+
+        var valorTotal = pedido.Itens.Sum(i => i.Valor * i.Quantidade);
 
         return new PedidoGetResponseDto
         {
@@ -147,7 +162,10 @@ public class PedidoService : IPedidoService
                 Valor = i.Valor,
                 Quantidade = i.Quantidade
             }).ToList(),
-            ComDesconto = pedido.ComDesconto
+            ComDesconto = pedido.ComDesconto,
+            ValorTotal = valorTotal,
+            ValorFinal = pedido.ValorFinal,
+            ValorComDesconto = pedido.ComDesconto
         };
     }
 
