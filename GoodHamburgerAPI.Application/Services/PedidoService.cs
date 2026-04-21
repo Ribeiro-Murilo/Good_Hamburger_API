@@ -32,6 +32,8 @@ public class PedidoService : IPedidoService
             }
         }
 
+        var itensComDetalhes = new List<ItemPedido>();
+
         foreach (var itemId in itensDicionario.Keys)
         {
             var item = await _context.ItensCardapio.FirstOrDefaultAsync(i => i.Id == itemId);
@@ -45,20 +47,22 @@ public class PedidoService : IPedidoService
             {
                 throw new InvalidOperationException("pedido inválido.");
             }
+
+            itensComDetalhes.Add(new ItemPedido
+            {
+                Id = item.Id,
+                Nome = item.Nome,
+                Valor = item.Preco,
+                Quantidade = itensDicionario[itemId]
+            });
         }
 
         var pedidoId = Guid.NewGuid();
 
-        var itensRedis = itensDicionario.Select(kvp => new ItemPedido
-        {
-            Id = kvp.Key,
-            Quantidade = kvp.Value
-        }).ToList();
-
         var pedidoRedis = new Pedido
         {
             Id = pedidoId,
-            Itens = itensRedis,
+            Itens = itensComDetalhes,
             ComDesconto = false
         };
 
@@ -90,6 +94,8 @@ public class PedidoService : IPedidoService
             }
         }
 
+        var itensAtualizados = new List<ItemPedido>();
+
         foreach (var itemId in itensDicionario.Keys)
         {
             var item = await _context.ItensCardapio.FirstOrDefaultAsync(i => i.Id == itemId);
@@ -103,13 +109,15 @@ public class PedidoService : IPedidoService
             {
                 throw new InvalidOperationException("pedido inválido.");
             }
-        }
 
-        var itensAtualizados = itensDicionario.Select(kvp => new ItemPedido
-        {
-            Id = kvp.Key,
-            Quantidade = kvp.Value
-        }).ToList();
+            itensAtualizados.Add(new ItemPedido
+            {
+                Id = item.Id,
+                Nome = item.Nome,
+                Valor = item.Preco,
+                Quantidade = itensDicionario[itemId]
+            });
+        }
 
         pedido.Itens = itensAtualizados;
 
@@ -126,6 +134,8 @@ public class PedidoService : IPedidoService
     private class ItemPedido
     {
         public int Id { get; set; }
+        public string Nome { get; set; } = string.Empty;
+        public decimal Valor { get; set; }
         public int Quantidade { get; set; }
     }
 }
