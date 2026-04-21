@@ -40,4 +40,31 @@ public class PedidosController : ControllerBase
             throw;
         }
     }
+
+    [HttpPut("api/pedidos/{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> AddItens(Guid id, [FromBody] PedidoRequestDto request)
+    {
+        try
+        {
+            await _pedidoService.AddItensAsync(id, request);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            if (ex.Message == "recurso não encontrado.")
+            {
+                return NotFound(new { mensagem = ex.Message });
+            }
+
+            if (ex.Message == "pedido inválido.")
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
+
+            throw;
+        }
+    }
 }

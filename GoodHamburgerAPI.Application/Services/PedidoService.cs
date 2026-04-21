@@ -67,6 +67,55 @@ public class PedidoService : IPedidoService
         return new PedidoResponseDto { Id = pedidoId };
     }
 
+    public async Task AddItensAsync(Guid pedidoId, PedidoRequestDto request)
+    {
+        var pedido = await _redisService.GetAsync<Pedido>($"pedido:{pedidoId}");
+
+        if (pedido == null)
+        {
+            throw new InvalidOperationException("recurso não encontrado.");
+        }
+
+        var itensDicionario = pedido.Itens.ToDictionary(i => i.Id, i => i.Quantidade);
+
+        foreach (var item in request.Itens)
+        {
+            if (itensDicionario.ContainsKey(item.Id))
+            {
+                itensDicionario[item.Id] += item.Quantidade;
+            }
+            else
+            {
+                itensDicionario[item.Id] = item.Quantidade;
+            }
+        }
+
+        foreach (var itemId in itensDicionario.Keys)
+        {
+            var item = await _context.ItensCardapio.FirstOrDefaultAsync(i => i.Id == itemId);
+
+            if (item == null)
+            {
+                throw new InvalidOperationException("recurso não encontrado.");
+            }
+
+            if (!item.Ativo)
+            {
+                throw new InvalidOperationException("pedido inválido.");
+            }
+        }
+
+        var itensAtualizados = itensDicionario.Select(kvp => new ItemPedido
+        {
+            Id = kvp.Key,
+            Quantidade = kvp.Value
+        }).ToList();
+
+        pedido.Itens = itensAtualizados;
+
+        await _redisService.SetAsync($"pedido:{pedidoId}", pedido);
+    }
+
     private class Pedido
     {
         public Guid Id { get; set; }

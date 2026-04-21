@@ -5,4 +5,5 @@ namespace GoodHamburgerAPI.Application.Services;
 public interface IPedidoService
 {
     Task<PedidoResponseDto> CreatePedidoAsync(PedidoRequestDto request);
+    Task AddItensAsync(Guid pedidoId, PedidoRequestDto request);
 }
