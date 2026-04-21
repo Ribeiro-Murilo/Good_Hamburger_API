@@ -11,6 +11,8 @@ public class AppDbContext : DbContext
 
     public DbSet<TipoItensCardapio> TipoItensCardapio { get; set; }
     public DbSet<ItensCardapio> ItensCardapio { get; set; }
+    public DbSet<Pedido> Pedido { get; set; }
+    public DbSet<ItemPedido> ItemPedido { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -18,6 +20,8 @@ public class AppDbContext : DbContext
 
         ConfigureTipoItensCardapio(modelBuilder);
         ConfigureItensCardapio(modelBuilder);
+        ConfigurePedido(modelBuilder);
+        ConfigureItemPedido(modelBuilder);
     }
 
     private void ConfigureTipoItensCardapio(ModelBuilder modelBuilder)
@@ -68,6 +72,84 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
 
             entity.ToTable("tb_itens_cardapio");
+        });
+    }
+
+    private void ConfigurePedido(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Pedido>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id)
+                .HasColumnType("char(36)");
+
+            entity.Property(e => e.ValorSemDesconto)
+                .IsRequired()
+                .HasColumnType("decimal(10,2)");
+
+            entity.Property(e => e.ValorFinal)
+                .IsRequired()
+                .HasColumnType("decimal(10,2)");
+
+            entity.Property(e => e.ComDesconto)
+                .IsRequired()
+                .HasColumnType("tinyint");
+
+            entity.Property(e => e.CriadoEm)
+                .IsRequired()
+                .HasColumnType("datetime");
+
+            entity.Property(e => e.AtualizadoEm)
+                .IsRequired()
+                .HasColumnType("datetime");
+
+            entity.HasMany(e => e.Itens)
+                .WithOne(i => i.Pedido)
+                .HasForeignKey(i => i.PedidoId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable("tb_pedido");
+        });
+    }
+
+    private void ConfigureItemPedido(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ItemPedido>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.PedidoId)
+                .IsRequired()
+                .HasColumnType("char(36)");
+
+            entity.Property(e => e.Quantidade)
+                .IsRequired()
+                .HasColumnType("int");
+
+            entity.Property(e => e.ValorUnitario)
+                .IsRequired()
+                .HasColumnType("decimal(10,2)");
+
+            entity.Property(e => e.ValorTotal)
+                .IsRequired()
+                .HasColumnType("decimal(10,2)");
+
+            entity.Property(e => e.Nome)
+                .IsRequired()
+                .HasMaxLength(255)
+                .HasColumnType("varchar(255)");
+
+            entity.Property(e => e.Valor)
+                .IsRequired()
+                .HasColumnType("decimal(10,2)");
+
+            entity.HasOne(e => e.Pedido)
+                .WithMany(p => p.Itens)
+                .HasForeignKey(e => e.PedidoId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable("tb_itens_pedido");
         });
     }
 }

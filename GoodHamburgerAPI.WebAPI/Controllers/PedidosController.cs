@@ -27,12 +27,12 @@ public class PedidosController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            if (ex.Message == "recurso não encontrado.")
+            if (ex.Message == "item do pedido não encontrado no menu.")
             {
                 return NotFound(new { mensagem = ex.Message });
             }
 
-            if (ex.Message == "pedido inválido.")
+            if (ex.Message == "quantidade dos itens do pedido deve ser maior que zero.")
             {
                 return BadRequest(new { mensagem = ex.Message });
             }
@@ -54,12 +54,17 @@ public class PedidosController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            if (ex.Message == "recurso não encontrado.")
+            if (ex.Message == "pedido não encontrado.")
             {
                 return NotFound(new { mensagem = ex.Message });
             }
 
-            if (ex.Message == "pedido inválido.")
+            if (ex.Message == "item do pedido não encontrado no menu.")
+            {
+                return NotFound(new { mensagem = ex.Message });
+            }
+
+            if (ex.Message == "quantidade dos itens do pedido deve ser maior que zero.")
             {
                 return BadRequest(new { mensagem = ex.Message });
             }
@@ -80,7 +85,7 @@ public class PedidosController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            if (ex.Message == "recurso não encontrado.")
+            if (ex.Message == "pedido não encontrado.")
             {
                 return NotFound(new { mensagem = ex.Message });
             }
