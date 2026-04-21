@@ -4,6 +4,7 @@ using System.Text.Json;
 using GoodHamburgerAPI.Application.DTOs;
 using GoodHamburgerAPI.Domain.Entities;
 using GoodHamburgerAPI.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using StackExchange.Redis;
 using Xunit;
@@ -425,6 +426,233 @@ public class PedidosControllerTests : IAsyncLifetime
         Assert.Equal(2, pedido.Itens[0].Id);
         Assert.Equal(3, pedido.Itens[0].Quantidade);
         Assert.Equal(60.00m, pedido.ValorTotal);
+    }
+
+    #endregion
+
+    #region POST /api/pedidos/{id}/fechar Tests
+
+    [Fact]
+    public async Task FecharPedido_WithExistingPedido_ShouldReturnOk()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var item = new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id };
+            dbContext.ItensCardapio.Add(item);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1, Quantidade = 2 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var response = await client.PostAsync($"/api/pedidos/{createdPedido!.Id}/fechar", new StringContent("", System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task FecharPedido_WithNonExistentPedido_ShouldReturnNotFoundWithMessage()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            await Task.CompletedTask;
+        });
+
+        var client = _factory.CreateClient();
+
+        var response = await client.PostAsync($"/api/pedidos/{Guid.NewGuid()}/fechar", null);
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Contains("pedido não encontrado.", content);
+    }
+
+    [Fact]
+    public async Task FecharPedido_ShouldPersistPedidoInDatabase()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var item = new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id };
+            dbContext.ItensCardapio.Add(item);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1, Quantidade = 2 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        await client.PostAsync($"/api/pedidos/{createdPedido!.Id}/fechar", null);
+
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var pedidoNoBanco = await dbContext.Pedido
+            .Include(p => p.Itens)
+            .FirstOrDefaultAsync(p => p.Id == createdPedido.Id);
+
+        Assert.NotNull(pedidoNoBanco);
+        Assert.Single(pedidoNoBanco.Itens);
+        Assert.Equal(2, pedidoNoBanco.Itens[0].Quantidade);
+        Assert.Equal(15.00m, pedidoNoBanco.Itens[0].ValorUnitario);
+        Assert.Equal(30.00m, pedidoNoBanco.Itens[0].ValorTotal);
+    }
+
+    [Fact]
+    public async Task FecharPedido_ShouldRemovePedidoFromRedis()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var item = new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id };
+            dbContext.ItensCardapio.Add(item);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1, Quantidade = 1 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        await client.PostAsync($"/api/pedidos/{createdPedido!.Id}/fechar", null);
+
+        var getResponse = await client.GetAsync($"/api/pedidos/{createdPedido.Id}");
+
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+    }
+
+    #endregion
+
+    #region DELETE /api/pedidos/{id} Tests
+
+    [Fact]
+    public async Task DeletarPedido_WithPedidoInRedis_ShouldReturnOkAndRemoveFromRedis()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var item = new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id };
+            dbContext.ItensCardapio.Add(item);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1, Quantidade = 2 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var deleteResponse = await client.DeleteAsync($"/api/pedidos/{createdPedido!.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);
+
+        var getResponse = await client.GetAsync($"/api/pedidos/{createdPedido.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeletarPedido_WithPedidoInDatabase_ShouldReturnOkAndInactivatePedido()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var item = new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id };
+            dbContext.ItensCardapio.Add(item);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1, Quantidade = 1 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        await client.PostAsync($"/api/pedidos/{createdPedido!.Id}/fechar", null);
+
+        var deleteResponse = await client.DeleteAsync($"/api/pedidos/{createdPedido.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);
+
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var pedidoNoBanco = await dbContext.Pedido.FirstOrDefaultAsync(p => p.Id == createdPedido.Id);
+
+        Assert.NotNull(pedidoNoBanco);
+        Assert.False(pedidoNoBanco.Ativo);
+        Assert.NotNull(pedidoNoBanco.DataExclusao);
+    }
+
+    [Fact]
+    public async Task DeletarPedido_WithNonExistentPedido_ShouldReturnNotFoundWithMessage()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            await Task.CompletedTask;
+        });
+
+        var client = _factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/api/pedidos/{Guid.NewGuid()}");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Contains("pedido não encontrado.", content);
     }
 
     #endregion

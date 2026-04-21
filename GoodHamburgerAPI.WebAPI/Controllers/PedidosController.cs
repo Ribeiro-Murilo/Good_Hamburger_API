@@ -73,6 +73,27 @@ public class PedidosController : ControllerBase
         }
     }
 
+    [HttpPost("api/pedidos/{id}/fechar")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> FecharPedido(Guid id)
+    {
+        try
+        {
+            await _pedidoService.FecharPedidoAsync(id);
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            if (ex.Message == "pedido não encontrado.")
+            {
+                return NotFound(new { mensagem = ex.Message });
+            }
+
+            throw;
+        }
+    }
+
     [HttpGet("api/pedidos/{id}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -82,6 +103,27 @@ public class PedidosController : ControllerBase
         {
             var response = await _pedidoService.GetPedidoAsync(id);
             return Ok(response);
+        }
+        catch (InvalidOperationException ex)
+        {
+            if (ex.Message == "pedido não encontrado.")
+            {
+                return NotFound(new { mensagem = ex.Message });
+            }
+
+            throw;
+        }
+    }
+
+    [HttpDelete("api/pedidos/{id}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> DeletarPedido(Guid id)
+    {
+        try
+        {
+            await _pedidoService.DeletarPedidoAsync(id);
+            return Ok();
         }
         catch (InvalidOperationException ex)
         {

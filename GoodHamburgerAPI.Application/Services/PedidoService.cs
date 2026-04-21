@@ -141,6 +141,28 @@ public class PedidoService : IPedidoService
         await _redisService.SetAsync($"pedido:{pedidoId}", pedido);
     }
 
+    public async Task FecharPedidoAsync(Guid pedidoId)
+    {
+        var pedido = await _redisService.GetAsync<Pedido>($"pedido:{pedidoId}");
+
+        if (pedido == null)
+        {
+            throw new InvalidOperationException("pedido não encontrado.");
+        }
+
+        foreach (var item in pedido.Itens)
+        {
+            item.PedidoId = pedido.Id;
+            item.ValorUnitario = item.Valor;
+            item.ValorTotal = item.Valor * item.Quantidade;
+        }
+
+        _context.Pedido.Add(pedido);
+        await _context.SaveChangesAsync();
+
+        await _redisService.RemoveAsync($"pedido:{pedidoId}");
+    }
+
     public async Task<PedidoGetResponseDto> GetPedidoAsync(Guid pedidoId)
     {
         var pedido = await _redisService.GetAsync<Pedido>($"pedido:{pedidoId}");
@@ -167,6 +189,30 @@ public class PedidoService : IPedidoService
             ValorFinal = pedido.ValorFinal,
             ValorComDesconto = pedido.ComDesconto
         };
+    }
+
+    public async Task DeletarPedidoAsync(Guid pedidoId)
+    {
+        var pedidoRedis = await _redisService.GetAsync<Pedido>($"pedido:{pedidoId}");
+
+        if (pedidoRedis != null)
+        {
+            await _redisService.RemoveAsync($"pedido:{pedidoId}");
+            return;
+        }
+
+        var pedidoBanco = await _context.Pedido.FirstOrDefaultAsync(p => p.Id == pedidoId);
+
+        if (pedidoBanco == null)
+        {
+            throw new InvalidOperationException("pedido não encontrado.");
+        }
+
+        pedidoBanco.Ativo = false;
+        pedidoBanco.DataExclusao = DateTime.UtcNow;
+
+        _context.Pedido.Update(pedidoBanco);
+        await _context.SaveChangesAsync();
     }
 
 }

@@ -104,6 +104,14 @@ public class AppDbContext : DbContext
                 .IsRequired()
                 .HasColumnType("datetime");
 
+            entity.Property(e => e.Ativo)
+                .IsRequired()
+                .HasDefaultValue(true)
+                .HasColumnType("tinyint");
+
+            entity.Property(e => e.DataExclusao)
+                .HasColumnType("datetime");
+
             entity.HasMany(e => e.Itens)
                 .WithOne(i => i.Pedido)
                 .HasForeignKey(i => i.PedidoId)
