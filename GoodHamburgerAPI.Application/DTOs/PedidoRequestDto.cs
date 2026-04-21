@@ -8,5 +8,4 @@ public class PedidoRequestDto
 public class ItemPedidoRequestDto
 {
     public int Id { get; set; }
-    public int Quantidade { get; set; }
 }

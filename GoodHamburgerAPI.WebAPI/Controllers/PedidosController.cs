@@ -32,7 +32,8 @@ public class PedidosController : ControllerBase
                 return NotFound(new { mensagem = ex.Message });
             }
 
-            if (ex.Message == "quantidade dos itens do pedido deve ser maior que zero.")
+            if (ex.Message == "não é permitido adicionar o mesmo item mais de uma vez no pedido." ||
+                ex.Message == "não é permitido mais de um item da mesma categoria no pedido.")
             {
                 return BadRequest(new { mensagem = ex.Message });
             }
@@ -69,7 +70,8 @@ public class PedidosController : ControllerBase
                 return NotFound(new { mensagem = ex.Message });
             }
 
-            if (ex.Message == "quantidade dos itens do pedido deve ser maior que zero.")
+            if (ex.Message == "não é permitido adicionar o mesmo item mais de uma vez no pedido." ||
+                ex.Message == "não é permitido mais de um item da mesma categoria no pedido.")
             {
                 return BadRequest(new { mensagem = ex.Message });
             }

@@ -19,31 +19,19 @@ public class PedidoService : IPedidoService
 
     public async Task<PedidoResponseDto> CreatePedidoAsync(PedidoRequestDto request)
     {
-        var itensDicionario = new Dictionary<int, int>();
-
-        foreach (var item in request.Itens)
-        {
-            if (item.Quantidade <= 0)
-            {
-                throw new InvalidOperationException("quantidade dos itens do pedido deve ser maior que zero.");
-            }
-
-            if (itensDicionario.ContainsKey(item.Id))
-            {
-                itensDicionario[item.Id] += item.Quantidade;
-            }
-            else
-            {
-                itensDicionario[item.Id] = item.Quantidade;
-            }
-        }
-
+        var idsVistos = new HashSet<int>();
+        var tiposVistos = new HashSet<int>();
         var itensComDetalhes = new List<ItemPedido>();
         decimal valorTotal = 0;
 
-        foreach (var itemId in itensDicionario.Keys)
+        foreach (var itemRequest in request.Itens)
         {
-            var item = await _context.ItensCardapio.FirstOrDefaultAsync(i => i.Id == itemId);
+            if (idsVistos.Contains(itemRequest.Id))
+            {
+                throw new InvalidOperationException("não é permitido adicionar o mesmo item mais de uma vez no pedido.");
+            }
+
+            var item = await _context.ItensCardapio.FirstOrDefaultAsync(i => i.Id == itemRequest.Id);
 
             if (item == null)
             {
@@ -55,15 +43,23 @@ public class PedidoService : IPedidoService
                 throw new InvalidOperationException("item do pedido não encontrado no menu.");
             }
 
+            if (tiposVistos.Contains(item.TipoId))
+            {
+                throw new InvalidOperationException("não é permitido mais de um item da mesma categoria no pedido.");
+            }
+
+            idsVistos.Add(itemRequest.Id);
+            tiposVistos.Add(item.TipoId);
+
             itensComDetalhes.Add(new ItemPedido
             {
                 Id = item.Id,
+                TipoId = item.TipoId,
                 Nome = item.Nome,
-                Valor = item.Preco,
-                Quantidade = itensDicionario[itemId]
+                Valor = item.Preco
             });
 
-            valorTotal += item.Preco * itensDicionario[itemId];
+            valorTotal += item.Preco;
         }
 
         var pedidoId = Guid.NewGuid();
@@ -100,24 +96,19 @@ public class PedidoService : IPedidoService
             throw new InvalidOperationException("pedido não encontrado.");
         }
 
-        var itensDicionario = new Dictionary<int, int>();
-
-        foreach (var item in request.Itens)
-        {
-            if (item.Quantidade <= 0)
-            {
-                throw new InvalidOperationException("quantidade dos itens do pedido deve ser maior que zero.");
-            }
-
-            itensDicionario[item.Id] = item.Quantidade;
-        }
-
+        var idsVistos = new HashSet<int>();
+        var tiposVistos = new HashSet<int>();
         var itensAtualizados = new List<ItemPedido>();
         decimal valorTotal = 0;
 
-        foreach (var itemId in itensDicionario.Keys)
+        foreach (var itemRequest in request.Itens)
         {
-            var item = await _context.ItensCardapio.FirstOrDefaultAsync(i => i.Id == itemId);
+            if (idsVistos.Contains(itemRequest.Id))
+            {
+                throw new InvalidOperationException("não é permitido adicionar o mesmo item mais de uma vez no pedido.");
+            }
+
+            var item = await _context.ItensCardapio.FirstOrDefaultAsync(i => i.Id == itemRequest.Id);
 
             if (item == null)
             {
@@ -129,15 +120,23 @@ public class PedidoService : IPedidoService
                 throw new InvalidOperationException("item do pedido não encontrado no menu.");
             }
 
+            if (tiposVistos.Contains(item.TipoId))
+            {
+                throw new InvalidOperationException("não é permitido mais de um item da mesma categoria no pedido.");
+            }
+
+            idsVistos.Add(itemRequest.Id);
+            tiposVistos.Add(item.TipoId);
+
             itensAtualizados.Add(new ItemPedido
             {
                 Id = item.Id,
+                TipoId = item.TipoId,
                 Nome = item.Nome,
-                Valor = item.Preco,
-                Quantidade = itensDicionario[itemId]
+                Valor = item.Preco
             });
 
-            valorTotal += item.Preco * itensDicionario[itemId];
+            valorTotal += item.Preco;
         }
 
         pedido.Itens = itensAtualizados;
@@ -160,8 +159,6 @@ public class PedidoService : IPedidoService
         foreach (var item in pedido.Itens)
         {
             item.PedidoId = pedido.Id;
-            item.ValorUnitario = item.Valor;
-            item.ValorTotal = item.Valor * item.Quantidade;
         }
 
         _context.Pedido.Add(pedido);
@@ -185,7 +182,7 @@ public class PedidoService : IPedidoService
                 throw new InvalidOperationException("pedido não encontrado.");
             }
 
-            var valorTotal = pedidoBanco.Itens.Sum(i => i.ValorTotal);
+            var valorTotal = pedidoBanco.Itens.Sum(i => i.Valor);
 
             return new PedidoGetResponseDto
             {
@@ -194,8 +191,7 @@ public class PedidoService : IPedidoService
                 {
                     Id = i.Id,
                     Nome = i.Nome,
-                    Valor = i.ValorUnitario,
-                    Quantidade = i.Quantidade
+                    Valor = i.Valor
                 }).ToList(),
                 ComDesconto = pedidoBanco.ComDesconto,
                 ValorTotal = valorTotal,
@@ -204,7 +200,7 @@ public class PedidoService : IPedidoService
             };
         }
 
-        var valorTotalRedis = pedido.Itens.Sum(i => i.Valor * i.Quantidade);
+        var valorTotalRedis = pedido.Itens.Sum(i => i.Valor);
 
         return new PedidoGetResponseDto
         {
@@ -213,8 +209,7 @@ public class PedidoService : IPedidoService
             {
                 Id = i.Id,
                 Nome = i.Nome,
-                Valor = i.Valor,
-                Quantidade = i.Quantidade
+                Valor = i.Valor
             }).ToList(),
             ComDesconto = pedido.ComDesconto,
             ValorTotal = valorTotalRedis,

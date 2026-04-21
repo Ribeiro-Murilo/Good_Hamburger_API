@@ -72,7 +72,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 2 }
+                new ItemPedidoRequestDto { Id = 1 }
             }
         };
 
@@ -98,7 +98,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 999, Quantidade = 1 }
+                new ItemPedidoRequestDto { Id = 999 }
             }
         };
 
@@ -110,7 +110,7 @@ public class PedidosControllerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CreatePedido_WithQuantityZeroOrLess_ShouldReturnBadRequestWithMessage()
+    public async Task CreatePedido_ShouldCalculateTotalValueFromItems()
     {
         await ClearAndSeedDatabaseAsync(async dbContext =>
         {
@@ -118,40 +118,14 @@ public class PedidosControllerTests : IAsyncLifetime
             dbContext.TipoItensCardapio.Add(tipo);
             await dbContext.SaveChangesAsync();
 
-            var item = new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id };
-            dbContext.ItensCardapio.Add(item);
-            await dbContext.SaveChangesAsync();
-        });
-
-        var client = _factory.CreateClient();
-        var request = new PedidoRequestDto
-        {
-            Itens = new List<ItemPedidoRequestDto>
-            {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 0 }
-            }
-        };
-
-        var response = await client.PostAsJsonAsync("/api/pedidos", request);
-        var content = await response.Content.ReadAsStringAsync();
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("quantidade dos itens do pedido deve ser maior que zero.", content);
-    }
-
-    [Fact]
-    public async Task CreatePedido_ShouldCalculateTotalValueFromItemsAndQuantities()
-    {
-        await ClearAndSeedDatabaseAsync(async dbContext =>
-        {
-            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
-            dbContext.TipoItensCardapio.Add(tipo);
+            var tipo2 = new TipoItensCardapio { Nome = "Bebida", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo2);
             await dbContext.SaveChangesAsync();
 
             var items = new[]
             {
                 new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id },
-                new ItensCardapio { Nome = "Hamburguer G", Preco = 20.00m, Ativo = true, TipoId = tipo.Id }
+                new ItensCardapio { Nome = "Refrigerante", Preco = 5.00m, Ativo = true, TipoId = tipo2.Id }
             };
             dbContext.ItensCardapio.AddRange(items);
             await dbContext.SaveChangesAsync();
@@ -162,8 +136,8 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 2 },
-                new ItemPedidoRequestDto { Id = 2, Quantidade = 1 }
+                new ItemPedidoRequestDto { Id = 1 },
+                new ItemPedidoRequestDto { Id = 2 }
             }
         };
 
@@ -175,7 +149,7 @@ public class PedidosControllerTests : IAsyncLifetime
         var getContent = await getResponse.Content.ReadAsStringAsync();
         var pedido = JsonSerializer.Deserialize<PedidoGetResponseDto>(getContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-        Assert.Equal(50.00m, pedido.ValorTotal);
+        Assert.Equal(20.00m, pedido.ValorTotal);
     }
 
     [Fact]
@@ -197,7 +171,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 1 }
+                new ItemPedidoRequestDto { Id = 1 }
             }
         };
 
@@ -209,6 +183,72 @@ public class PedidosControllerTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
         Assert.NotNull(createdPedido.Id);
+    }
+
+    [Fact]
+    public async Task CreatePedido_WithDuplicateItem_ShouldReturnBadRequest()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var item = new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id };
+            dbContext.ItensCardapio.Add(item);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+        var request = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 },
+                new ItemPedidoRequestDto { Id = 1 }
+            }
+        };
+
+        var response = await client.PostAsJsonAsync("/api/pedidos", request);
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("não é permitido adicionar o mesmo item mais de uma vez no pedido.", content);
+    }
+
+    [Fact]
+    public async Task CreatePedido_WithDuplicateCategory_ShouldReturnBadRequest()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var items = new[]
+            {
+                new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id },
+                new ItensCardapio { Nome = "Hamburguer G", Preco = 20.00m, Ativo = true, TipoId = tipo.Id }
+            };
+            dbContext.ItensCardapio.AddRange(items);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+        var request = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 },
+                new ItemPedidoRequestDto { Id = 2 }
+            }
+        };
+
+        var response = await client.PostAsJsonAsync("/api/pedidos", request);
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("não é permitido mais de um item da mesma categoria no pedido.", content);
     }
 
     #endregion
@@ -235,7 +275,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 2 }
+                new ItemPedidoRequestDto { Id = 1 }
             }
         };
 
@@ -254,7 +294,6 @@ public class PedidosControllerTests : IAsyncLifetime
         Assert.NotNull(pedido);
         Assert.Equal(createdPedido.Id, pedido.Id);
         Assert.Single(pedido.Itens);
-        Assert.Equal(2, pedido.Itens[0].Quantidade);
     }
 
     #endregion
@@ -270,10 +309,14 @@ public class PedidosControllerTests : IAsyncLifetime
             dbContext.TipoItensCardapio.Add(tipo);
             await dbContext.SaveChangesAsync();
 
+            var tipo2 = new TipoItensCardapio { Nome = "Bebida", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo2);
+            await dbContext.SaveChangesAsync();
+
             var items = new[]
             {
                 new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id },
-                new ItensCardapio { Nome = "Hamburguer G", Preco = 20.00m, Ativo = true, TipoId = tipo.Id }
+                new ItensCardapio { Nome = "Refrigerante", Preco = 5.00m, Ativo = true, TipoId = tipo2.Id }
             };
             dbContext.ItensCardapio.AddRange(items);
             await dbContext.SaveChangesAsync();
@@ -285,7 +328,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 1 }
+                new ItemPedidoRequestDto { Id = 1 }
             }
         };
 
@@ -297,7 +340,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 2, Quantidade = 2 }
+                new ItemPedidoRequestDto { Id = 2 }
             }
         };
 
@@ -325,7 +368,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 1 }
+                new ItemPedidoRequestDto { Id = 1 }
             }
         };
 
@@ -356,7 +399,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 1 }
+                new ItemPedidoRequestDto { Id = 1 }
             }
         };
 
@@ -368,7 +411,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 999, Quantidade = 1 }
+                new ItemPedidoRequestDto { Id = 999 }
             }
         };
 
@@ -380,49 +423,6 @@ public class PedidosControllerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task UpdatePedido_WithQuantityZeroOrLess_ShouldReturnBadRequestWithMessage()
-    {
-        await ClearAndSeedDatabaseAsync(async dbContext =>
-        {
-            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
-            dbContext.TipoItensCardapio.Add(tipo);
-            await dbContext.SaveChangesAsync();
-
-            var item = new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id };
-            dbContext.ItensCardapio.Add(item);
-            await dbContext.SaveChangesAsync();
-        });
-
-        var client = _factory.CreateClient();
-
-        var createRequest = new PedidoRequestDto
-        {
-            Itens = new List<ItemPedidoRequestDto>
-            {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 1 }
-            }
-        };
-
-        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
-        var createContent = await createResponse.Content.ReadAsStringAsync();
-        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-        var updateRequest = new PedidoRequestDto
-        {
-            Itens = new List<ItemPedidoRequestDto>
-            {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 0 }
-            }
-        };
-
-        var updateResponse = await client.PutAsJsonAsync($"/api/pedidos/{createdPedido.Id}", updateRequest);
-        var updateContent = await updateResponse.Content.ReadAsStringAsync();
-
-        Assert.Equal(HttpStatusCode.BadRequest, updateResponse.StatusCode);
-        Assert.Contains("quantidade dos itens do pedido deve ser maior que zero.", updateContent);
-    }
-
-    [Fact]
     public async Task UpdatePedido_WithPedidoAlreadyInDatabase_ShouldReturnBadRequestWithMessage()
     {
         await ClearAndSeedDatabaseAsync(async dbContext =>
@@ -431,10 +431,14 @@ public class PedidosControllerTests : IAsyncLifetime
             dbContext.TipoItensCardapio.Add(tipo);
             await dbContext.SaveChangesAsync();
 
+            var tipo2 = new TipoItensCardapio { Nome = "Bebida", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo2);
+            await dbContext.SaveChangesAsync();
+
             var items = new[]
             {
                 new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id },
-                new ItensCardapio { Nome = "Hamburguer G", Preco = 20.00m, Ativo = true, TipoId = tipo.Id }
+                new ItensCardapio { Nome = "Refrigerante", Preco = 5.00m, Ativo = true, TipoId = tipo2.Id }
             };
             dbContext.ItensCardapio.AddRange(items);
             await dbContext.SaveChangesAsync();
@@ -446,7 +450,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 1 }
+                new ItemPedidoRequestDto { Id = 1 }
             }
         };
 
@@ -461,7 +465,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 2, Quantidade = 1 }
+                new ItemPedidoRequestDto { Id = 2 }
             }
         };
 
@@ -481,6 +485,105 @@ public class PedidosControllerTests : IAsyncLifetime
             dbContext.TipoItensCardapio.Add(tipo);
             await dbContext.SaveChangesAsync();
 
+            var tipo2 = new TipoItensCardapio { Nome = "Bebida", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo2);
+            await dbContext.SaveChangesAsync();
+
+            var items = new[]
+            {
+                new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id },
+                new ItensCardapio { Nome = "Refrigerante", Preco = 5.00m, Ativo = true, TipoId = tipo2.Id }
+            };
+            dbContext.ItensCardapio.AddRange(items);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var updateRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 2 }
+            }
+        };
+
+        await client.PutAsJsonAsync($"/api/pedidos/{createdPedido.Id}", updateRequest);
+
+        var getResponse = await client.GetAsync($"/api/pedidos/{createdPedido.Id}");
+        var getContent = await getResponse.Content.ReadAsStringAsync();
+        var pedido = JsonSerializer.Deserialize<PedidoGetResponseDto>(getContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        Assert.Single(pedido.Itens);
+        Assert.Equal(2, pedido.Itens[0].Id);
+        Assert.Equal(5.00m, pedido.ValorTotal);
+    }
+
+    [Fact]
+    public async Task UpdatePedido_WithDuplicateItem_ShouldReturnBadRequest()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var item = new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id };
+            dbContext.ItensCardapio.Add(item);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var updateRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 },
+                new ItemPedidoRequestDto { Id = 1 }
+            }
+        };
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/pedidos/{createdPedido.Id}", updateRequest);
+        var updateContent = await updateResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, updateResponse.StatusCode);
+        Assert.Contains("não é permitido adicionar o mesmo item mais de uma vez no pedido.", updateContent);
+    }
+
+    [Fact]
+    public async Task UpdatePedido_WithDuplicateCategory_ShouldReturnBadRequest()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
             var items = new[]
             {
                 new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id },
@@ -496,7 +599,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 1 }
+                new ItemPedidoRequestDto { Id = 1 }
             }
         };
 
@@ -508,20 +611,16 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 2, Quantidade = 3 }
+                new ItemPedidoRequestDto { Id = 1 },
+                new ItemPedidoRequestDto { Id = 2 }
             }
         };
 
-        await client.PutAsJsonAsync($"/api/pedidos/{createdPedido.Id}", updateRequest);
+        var updateResponse = await client.PutAsJsonAsync($"/api/pedidos/{createdPedido.Id}", updateRequest);
+        var updateContent = await updateResponse.Content.ReadAsStringAsync();
 
-        var getResponse = await client.GetAsync($"/api/pedidos/{createdPedido.Id}");
-        var getContent = await getResponse.Content.ReadAsStringAsync();
-        var pedido = JsonSerializer.Deserialize<PedidoGetResponseDto>(getContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-        Assert.Single(pedido.Itens);
-        Assert.Equal(2, pedido.Itens[0].Id);
-        Assert.Equal(3, pedido.Itens[0].Quantidade);
-        Assert.Equal(60.00m, pedido.ValorTotal);
+        Assert.Equal(HttpStatusCode.BadRequest, updateResponse.StatusCode);
+        Assert.Contains("não é permitido mais de um item da mesma categoria no pedido.", updateContent);
     }
 
     #endregion
@@ -547,7 +646,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 2 }
+                new ItemPedidoRequestDto { Id = 1 }
             }
         };
 
@@ -596,7 +695,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 2 }
+                new ItemPedidoRequestDto { Id = 1 }
             }
         };
 
@@ -614,9 +713,7 @@ public class PedidosControllerTests : IAsyncLifetime
 
         Assert.NotNull(pedidoNoBanco);
         Assert.Single(pedidoNoBanco.Itens);
-        Assert.Equal(2, pedidoNoBanco.Itens[0].Quantidade);
-        Assert.Equal(15.00m, pedidoNoBanco.Itens[0].ValorUnitario);
-        Assert.Equal(30.00m, pedidoNoBanco.Itens[0].ValorTotal);
+        Assert.Equal(15.00m, pedidoNoBanco.Itens[0].Valor);
     }
 
     [Fact]
@@ -638,7 +735,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 1 }
+                new ItemPedidoRequestDto { Id = 1 }
             }
         };
 
@@ -656,7 +753,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 1 }
+                new ItemPedidoRequestDto { Id = 1 }
             }
         };
 
@@ -687,7 +784,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 2 }
+                new ItemPedidoRequestDto { Id = 1 }
             }
         };
 
@@ -722,7 +819,7 @@ public class PedidosControllerTests : IAsyncLifetime
         {
             Itens = new List<ItemPedidoRequestDto>
             {
-                new ItemPedidoRequestDto { Id = 1, Quantidade = 1 }
+                new ItemPedidoRequestDto { Id = 1 }
             }
         };
 

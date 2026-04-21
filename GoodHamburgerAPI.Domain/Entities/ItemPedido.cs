@@ -4,9 +4,7 @@ public class ItemPedido
 {
     public int Id { get; set; }
     public Guid PedidoId { get; set; }
-    public int Quantidade { get; set; }
-    public decimal ValorUnitario { get; set; }
-    public decimal ValorTotal { get; set; }
+    public int TipoId { get; set; }
     public string Nome { get; set; } = string.Empty;
     public decimal Valor { get; set; }
 

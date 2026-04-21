@@ -131,17 +131,9 @@ public class AppDbContext : DbContext
                 .IsRequired()
                 .HasColumnType("char(36)");
 
-            entity.Property(e => e.Quantidade)
+            entity.Property(e => e.TipoId)
                 .IsRequired()
                 .HasColumnType("int");
-
-            entity.Property(e => e.ValorUnitario)
-                .IsRequired()
-                .HasColumnType("decimal(10,2)");
-
-            entity.Property(e => e.ValorTotal)
-                .IsRequired()
-                .HasColumnType("decimal(10,2)");
 
             entity.Property(e => e.Nome)
                 .IsRequired()
