@@ -90,6 +90,13 @@ public class PedidoService : IPedidoService
 
         if (pedido == null)
         {
+            var pedidoBanco = await _context.Pedido.FirstOrDefaultAsync(p => p.Id == pedidoId);
+
+            if (pedidoBanco != null)
+            {
+                throw new InvalidOperationException("pedido já foi finalizado, não é possível fazer mais alterações.");
+            }
+
             throw new InvalidOperationException("pedido não encontrado.");
         }
 
@@ -169,10 +176,35 @@ public class PedidoService : IPedidoService
 
         if (pedido == null)
         {
-            throw new InvalidOperationException("pedido não encontrado.");
+            var pedidoBanco = await _context.Pedido
+                .Include(p => p.Itens)
+                .FirstOrDefaultAsync(p => p.Id == pedidoId && p.Ativo);
+
+            if (pedidoBanco == null)
+            {
+                throw new InvalidOperationException("pedido não encontrado.");
+            }
+
+            var valorTotal = pedidoBanco.Itens.Sum(i => i.ValorTotal);
+
+            return new PedidoGetResponseDto
+            {
+                Id = pedidoBanco.Id,
+                Itens = pedidoBanco.Itens.Select(i => new ItemPedidoResponseDto
+                {
+                    Id = i.Id,
+                    Nome = i.Nome,
+                    Valor = i.ValorUnitario,
+                    Quantidade = i.Quantidade
+                }).ToList(),
+                ComDesconto = pedidoBanco.ComDesconto,
+                ValorTotal = valorTotal,
+                ValorFinal = pedidoBanco.ValorFinal,
+                ValorComDesconto = pedidoBanco.ComDesconto
+            };
         }
 
-        var valorTotal = pedido.Itens.Sum(i => i.Valor * i.Quantidade);
+        var valorTotalRedis = pedido.Itens.Sum(i => i.Valor * i.Quantidade);
 
         return new PedidoGetResponseDto
         {
@@ -185,7 +217,7 @@ public class PedidoService : IPedidoService
                 Quantidade = i.Quantidade
             }).ToList(),
             ComDesconto = pedido.ComDesconto,
-            ValorTotal = valorTotal,
+            ValorTotal = valorTotalRedis,
             ValorFinal = pedido.ValorFinal,
             ValorComDesconto = pedido.ComDesconto
         };

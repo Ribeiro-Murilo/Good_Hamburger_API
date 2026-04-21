@@ -213,6 +213,52 @@ public class PedidosControllerTests : IAsyncLifetime
 
     #endregion
 
+    #region GET /api/pedidos/{id} Tests
+
+    [Fact]
+    public async Task GetPedido_WithPedidoInDatabase_ShouldReturnPedidoFromDatabase()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var item = new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id };
+            dbContext.ItensCardapio.Add(item);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1, Quantidade = 2 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var closeResponse = await client.PostAsync($"/api/pedidos/{createdPedido!.Id}/fechar", null);
+        Assert.Equal(HttpStatusCode.OK, closeResponse.StatusCode);
+
+        var getResponse = await client.GetAsync($"/api/pedidos/{createdPedido.Id}");
+        var getContent = await getResponse.Content.ReadAsStringAsync();
+        var pedido = JsonSerializer.Deserialize<PedidoGetResponseDto>(getContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        Assert.NotNull(pedido);
+        Assert.Equal(createdPedido.Id, pedido.Id);
+        Assert.Single(pedido.Itens);
+        Assert.Equal(2, pedido.Itens[0].Quantidade);
+    }
+
+    #endregion
+
     #region PUT /api/pedidos/{id} Tests
 
     [Fact]
@@ -374,6 +420,56 @@ public class PedidosControllerTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.BadRequest, updateResponse.StatusCode);
         Assert.Contains("quantidade dos itens do pedido deve ser maior que zero.", updateContent);
+    }
+
+    [Fact]
+    public async Task UpdatePedido_WithPedidoAlreadyInDatabase_ShouldReturnBadRequestWithMessage()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var items = new[]
+            {
+                new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id },
+                new ItensCardapio { Nome = "Hamburguer G", Preco = 20.00m, Ativo = true, TipoId = tipo.Id }
+            };
+            dbContext.ItensCardapio.AddRange(items);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1, Quantidade = 1 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var closeResponse = await client.PostAsync($"/api/pedidos/{createdPedido!.Id}/fechar", null);
+        Assert.Equal(HttpStatusCode.OK, closeResponse.StatusCode);
+
+        var updateRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 2, Quantidade = 1 }
+            }
+        };
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/pedidos/{createdPedido.Id}", updateRequest);
+        var updateContent = await updateResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, updateResponse.StatusCode);
+        Assert.Contains("pedido já foi finalizado, não é possível fazer mais alterações.", updateContent);
     }
 
     [Fact]
@@ -550,11 +646,22 @@ public class PedidosControllerTests : IAsyncLifetime
         var createContent = await createResponse.Content.ReadAsStringAsync();
         var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-        await client.PostAsync($"/api/pedidos/{createdPedido!.Id}/fechar", null);
+        var fecharResponse = await client.PostAsync($"/api/pedidos/{createdPedido!.Id}/fechar", null);
+        Assert.Equal(HttpStatusCode.OK, fecharResponse.StatusCode);
 
         var getResponse = await client.GetAsync($"/api/pedidos/{createdPedido.Id}");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
 
-        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+        var addItensRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1, Quantidade = 1 }
+            }
+        };
+
+        var addResponse = await client.PutAsJsonAsync($"/api/pedidos/{createdPedido.Id}", addItensRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, addResponse.StatusCode);
     }
 
     #endregion

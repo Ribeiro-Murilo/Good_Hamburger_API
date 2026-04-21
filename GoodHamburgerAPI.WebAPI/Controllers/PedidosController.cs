@@ -59,6 +59,11 @@ public class PedidosController : ControllerBase
                 return NotFound(new { mensagem = ex.Message });
             }
 
+            if (ex.Message == "pedido já foi finalizado, não é possível fazer mais alterações.")
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
+
             if (ex.Message == "item do pedido não encontrado no menu.")
             {
                 return NotFound(new { mensagem = ex.Message });
