@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: goodhamburger_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: goodhamburger_db
+      MYSQL_USER: hamburger_user
+      MYSQL_PASSWORD: hamburger_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    networks:
+      - goodhamburger_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: goodhamburger_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 20s
+      retries: 10
+    networks:
+      - goodhamburger_network
+
+  api:
+    build: .
+    container_name: goodhamburger_api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Server=mysql;Port=3306;Database=goodhamburger_db;User=root;Password=root123;
+      - ConnectionStrings__Redis=redis:6379
+    ports:
+      - "8080:8080"
+    networks:
+      - goodhamburger_network
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  goodhamburger_network:
+    driver: bridge
