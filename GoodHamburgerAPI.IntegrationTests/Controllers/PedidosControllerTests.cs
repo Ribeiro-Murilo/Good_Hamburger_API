@@ -1043,4 +1043,150 @@ public class PedidosControllerTests : IAsyncLifetime
     }
 
     #endregion
+
+    #region Desconto Tests
+
+    private async Task RecreateAndSeedDatabaseAsync(Func<AppDbContext, Task> seedAction)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await dbContext.Database.EnsureDeletedAsync();
+        await dbContext.Database.EnsureCreatedAsync();
+
+        dbContext.Desconto.AddRange(
+            new Desconto { Id = 1, DescontoPorCento = 20, Ativo = true },
+            new Desconto { Id = 2, DescontoPorCento = 15, Ativo = true },
+            new Desconto { Id = 3, DescontoPorCento = 10, Ativo = true }
+        );
+        await dbContext.SaveChangesAsync();
+
+        await seedAction(dbContext);
+    }
+
+    [Fact]
+    public async Task CreatePedido_WithSanduicheBatataRefrigerante_ShouldApply20PercentDiscount()
+    {
+        await RecreateAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipoSanduiche = new TipoItensCardapio { Nome = "laches", Ativo = true };
+            var tipoAcompanhamento = new TipoItensCardapio { Nome = "acompanhamentos", Ativo = true };
+            var tipoBebida = new TipoItensCardapio { Nome = "bebidas", Ativo = true };
+            dbContext.TipoItensCardapio.AddRange(tipoSanduiche, tipoAcompanhamento, tipoBebida);
+            await dbContext.SaveChangesAsync();
+
+            dbContext.ItensCardapio.AddRange(
+                new ItensCardapio { Nome = "Hamburguer X", Preco = 20.00m, Ativo = true, TipoId = tipoSanduiche.Id },
+                new ItensCardapio { Nome = "Batata Frita", Preco = 10.00m, Ativo = true, TipoId = tipoAcompanhamento.Id },
+                new ItensCardapio { Nome = "Refrigerante", Preco = 5.00m, Ativo = true, TipoId = tipoBebida.Id }
+            );
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+        var request = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 },
+                new ItemPedidoRequestDto { Id = 2 },
+                new ItemPedidoRequestDto { Id = 3 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", request);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var getResponse = await client.GetAsync($"/api/pedidos/{createdPedido.Id}");
+        var getContent = await getResponse.Content.ReadAsStringAsync();
+        var pedido = JsonSerializer.Deserialize<PedidoGetResponseDto>(getContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        Assert.True(pedido.ComDesconto);
+        Assert.Equal(35.00m, pedido.ValorTotal);
+        Assert.Equal(28.00m, pedido.ValorFinal);
+    }
+
+    [Fact]
+    public async Task CreatePedido_WithSanduicheRefrigerante_ShouldApply15PercentDiscount()
+    {
+        await RecreateAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipoSanduiche = new TipoItensCardapio { Nome = "laches", Ativo = true };
+            var tipoAcompanhamento = new TipoItensCardapio { Nome = "acompanhamentos", Ativo = true };
+            var tipoBebida = new TipoItensCardapio { Nome = "bebidas", Ativo = true };
+            dbContext.TipoItensCardapio.AddRange(tipoSanduiche, tipoAcompanhamento, tipoBebida);
+            await dbContext.SaveChangesAsync();
+
+            dbContext.ItensCardapio.AddRange(
+                new ItensCardapio { Nome = "Hamburguer X", Preco = 20.00m, Ativo = true, TipoId = tipoSanduiche.Id },
+                new ItensCardapio { Nome = "Refrigerante", Preco = 5.00m, Ativo = true, TipoId = tipoBebida.Id }
+            );
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+        var request = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 },
+                new ItemPedidoRequestDto { Id = 2 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", request);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var getResponse = await client.GetAsync($"/api/pedidos/{createdPedido.Id}");
+        var getContent = await getResponse.Content.ReadAsStringAsync();
+        var pedido = JsonSerializer.Deserialize<PedidoGetResponseDto>(getContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        Assert.True(pedido.ComDesconto);
+        Assert.Equal(25.00m, pedido.ValorTotal);
+        Assert.Equal(21.25m, pedido.ValorFinal);
+    }
+
+    [Fact]
+    public async Task CreatePedido_WithSanduicheBatata_ShouldApply10PercentDiscount()
+    {
+        await RecreateAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipoSanduiche = new TipoItensCardapio { Nome = "laches", Ativo = true };
+            var tipoAcompanhamento = new TipoItensCardapio { Nome = "acompanhamentos", Ativo = true };
+            var tipoBebida = new TipoItensCardapio { Nome = "bebidas", Ativo = true };
+            dbContext.TipoItensCardapio.AddRange(tipoSanduiche, tipoAcompanhamento, tipoBebida);
+            await dbContext.SaveChangesAsync();
+
+            dbContext.ItensCardapio.AddRange(
+                new ItensCardapio { Nome = "Hamburguer X", Preco = 20.00m, Ativo = true, TipoId = tipoSanduiche.Id },
+                new ItensCardapio { Nome = "Batata Frita", Preco = 10.00m, Ativo = true, TipoId = tipoAcompanhamento.Id }
+            );
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+        var request = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 },
+                new ItemPedidoRequestDto { Id = 2 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", request);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var getResponse = await client.GetAsync($"/api/pedidos/{createdPedido.Id}");
+        var getContent = await getResponse.Content.ReadAsStringAsync();
+        var pedido = JsonSerializer.Deserialize<PedidoGetResponseDto>(getContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        Assert.True(pedido.ComDesconto);
+        Assert.Equal(30.00m, pedido.ValorTotal);
+        Assert.Equal(27.00m, pedido.ValorFinal);
+    }
+
+    #endregion
 }

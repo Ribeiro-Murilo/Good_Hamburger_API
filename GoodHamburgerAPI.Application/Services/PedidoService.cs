@@ -62,17 +62,23 @@ public class PedidoService : IPedidoService
             valorTotal += item.Preco;
         }
 
+        var desconto = await ObterDescontoAplicavelAsync(tiposVistos);
+        var comDesconto = desconto != null;
+        var valorFinal = comDesconto
+            ? valorTotal * (1 - desconto!.DescontoPorCento / 100m)
+            : valorTotal;
+
         var pedidoId = Guid.NewGuid();
 
         var pedidoRedis = new Pedido
         {
             Id = pedidoId,
             Itens = itensComDetalhes,
-            ComDesconto = false,
+            ComDesconto = comDesconto,
             CriadoEm = DateTime.UtcNow,
             AtualizadoEm = DateTime.UtcNow,
             ValorSemDesconto = valorTotal,
-            ValorFinal = valorTotal
+            ValorFinal = valorFinal
         };
 
         await _redisService.SetAsync($"pedido:{pedidoId}", pedidoRedis);
@@ -106,7 +112,12 @@ public class PedidoService : IPedidoService
         pedido.Itens.Remove(item);
         pedido.AtualizadoEm = DateTime.UtcNow;
         pedido.ValorSemDesconto = pedido.Itens.Sum(i => i.Valor);
-        pedido.ValorFinal = pedido.ValorSemDesconto;
+        var tiposRestantes = new HashSet<int>(pedido.Itens.Select(i => i.TipoId));
+        var descontoRemocao = await ObterDescontoAplicavelAsync(tiposRestantes);
+        pedido.ComDesconto = descontoRemocao != null;
+        pedido.ValorFinal = pedido.ComDesconto
+            ? pedido.ValorSemDesconto * (1 - descontoRemocao!.DescontoPorCento / 100m)
+            : pedido.ValorSemDesconto;
 
         await _redisService.SetAsync($"pedido:{pedidoId}", pedido);
     }
@@ -248,7 +259,12 @@ public class PedidoService : IPedidoService
 
         pedido.AtualizadoEm = DateTime.UtcNow;
         pedido.ValorSemDesconto += valorAdicionado;
-        pedido.ValorFinal = pedido.ValorSemDesconto;
+        var tiposAtuais = new HashSet<int>(pedido.Itens.Select(i => i.TipoId));
+        var descontoAdicao = await ObterDescontoAplicavelAsync(tiposAtuais);
+        pedido.ComDesconto = descontoAdicao != null;
+        pedido.ValorFinal = pedido.ComDesconto
+            ? pedido.ValorSemDesconto * (1 - descontoAdicao!.DescontoPorCento / 100m)
+            : pedido.ValorSemDesconto;
 
         await _redisService.SetAsync($"pedido:{pedidoId}", pedido);
     }
@@ -275,6 +291,24 @@ public class PedidoService : IPedidoService
 
         _context.Pedido.Update(pedidoBanco);
         await _context.SaveChangesAsync();
+    }
+
+    private async Task<Desconto?> ObterDescontoAplicavelAsync(HashSet<int> tipos)
+    {
+        int? descontoId = null;
+
+        if (tipos.IsSupersetOf([1, 2, 3]))
+            descontoId = 1;
+        else if (tipos.IsSupersetOf([1, 3]))
+            descontoId = 2;
+        else if (tipos.IsSupersetOf([1, 2]))
+            descontoId = 3;
+
+        if (descontoId == null)
+            return null;
+
+        var id = descontoId.Value;
+        return await _context.Desconto.FirstOrDefaultAsync(d => d.Id == id && d.Ativo);
     }
 
 }
