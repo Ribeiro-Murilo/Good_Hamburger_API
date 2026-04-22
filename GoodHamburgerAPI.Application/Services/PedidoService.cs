@@ -182,6 +182,77 @@ public class PedidoService : IPedidoService
         };
     }
 
+    public async Task AdicionarItensAsync(Guid pedidoId, PedidoRequestDto request)
+    {
+        var pedido = await _redisService.GetAsync<Pedido>($"pedido:{pedidoId}");
+
+        if (pedido == null)
+        {
+            var pedidoBanco = await _context.Pedido.FirstOrDefaultAsync(p => p.Id == pedidoId);
+
+            if (pedidoBanco != null)
+            {
+                throw new InvalidOperationException("pedido já foi finalizado, não é possível fazer mais alterações.");
+            }
+
+            throw new InvalidOperationException("pedido não encontrado.");
+        }
+
+        var idsExistentes = new HashSet<int>(pedido.Itens.Select(i => i.Id));
+        var tiposExistentes = new HashSet<int>(pedido.Itens.Select(i => i.TipoId));
+        var idsVistos = new HashSet<int>();
+        decimal valorAdicionado = 0;
+
+        foreach (var itemRequest in request.Itens)
+        {
+            if (idsVistos.Contains(itemRequest.Id))
+            {
+                throw new InvalidOperationException("não é permitido adicionar o mesmo item mais de uma vez no pedido.");
+            }
+
+            if (idsExistentes.Contains(itemRequest.Id))
+            {
+                throw new InvalidOperationException("não é permitido adicionar o mesmo item mais de uma vez no pedido.");
+            }
+
+            var item = await _context.ItensCardapio.FirstOrDefaultAsync(i => i.Id == itemRequest.Id);
+
+            if (item == null)
+            {
+                throw new InvalidOperationException("item do pedido não encontrado no menu.");
+            }
+
+            if (!item.Ativo)
+            {
+                throw new InvalidOperationException("item do pedido não encontrado no menu.");
+            }
+
+            if (tiposExistentes.Contains(item.TipoId))
+            {
+                throw new InvalidOperationException("não é permitido mais de um item da mesma categoria no pedido.");
+            }
+
+            idsVistos.Add(itemRequest.Id);
+            tiposExistentes.Add(item.TipoId);
+
+            pedido.Itens.Add(new ItemPedido
+            {
+                Id = item.Id,
+                TipoId = item.TipoId,
+                Nome = item.Nome,
+                Valor = item.Preco
+            });
+
+            valorAdicionado += item.Preco;
+        }
+
+        pedido.AtualizadoEm = DateTime.UtcNow;
+        pedido.ValorSemDesconto += valorAdicionado;
+        pedido.ValorFinal = pedido.ValorSemDesconto;
+
+        await _redisService.SetAsync($"pedido:{pedidoId}", pedido);
+    }
+
     public async Task DeletarPedidoAsync(Guid pedidoId)
     {
         var pedidoRedis = await _redisService.GetAsync<Pedido>($"pedido:{pedidoId}");

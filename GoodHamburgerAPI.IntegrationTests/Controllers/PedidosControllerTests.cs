@@ -253,6 +253,380 @@ public class PedidosControllerTests : IAsyncLifetime
 
     #endregion
 
+    #region POST /api/pedidos/{id}/itens Tests
+
+    [Fact]
+    public async Task AdicionarItens_WithValidItems_ShouldReturnOk()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var tipo2 = new TipoItensCardapio { Nome = "Bebida", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo2);
+            await dbContext.SaveChangesAsync();
+
+            var items = new[]
+            {
+                new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id },
+                new ItensCardapio { Nome = "Refrigerante", Preco = 5.00m, Ativo = true, TipoId = tipo2.Id }
+            };
+            dbContext.ItensCardapio.AddRange(items);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var addRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 2 }
+            }
+        };
+
+        var addResponse = await client.PostAsJsonAsync($"/api/pedidos/{createdPedido.Id}/itens", addRequest);
+
+        Assert.Equal(HttpStatusCode.OK, addResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task AdicionarItens_WithValidItems_ShouldUpdateTotalValue()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var tipo2 = new TipoItensCardapio { Nome = "Bebida", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo2);
+            await dbContext.SaveChangesAsync();
+
+            var items = new[]
+            {
+                new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id },
+                new ItensCardapio { Nome = "Refrigerante", Preco = 5.00m, Ativo = true, TipoId = tipo2.Id }
+            };
+            dbContext.ItensCardapio.AddRange(items);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var addRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 2 }
+            }
+        };
+
+        await client.PostAsJsonAsync($"/api/pedidos/{createdPedido.Id}/itens", addRequest);
+
+        var getResponse = await client.GetAsync($"/api/pedidos/{createdPedido.Id}");
+        var getContent = await getResponse.Content.ReadAsStringAsync();
+        var pedido = JsonSerializer.Deserialize<PedidoGetResponseDto>(getContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        Assert.Equal(20.00m, pedido.ValorTotal);
+        Assert.Equal(2, pedido.Itens.Count);
+    }
+
+    [Fact]
+    public async Task AdicionarItens_WithNonExistentPedido_ShouldReturnNotFound()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            await Task.CompletedTask;
+        });
+
+        var client = _factory.CreateClient();
+
+        var addRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 }
+            }
+        };
+
+        var response = await client.PostAsJsonAsync($"/api/pedidos/{Guid.NewGuid()}/itens", addRequest);
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Contains("pedido não encontrado.", content);
+    }
+
+    [Fact]
+    public async Task AdicionarItens_WithItemNotInMenu_ShouldReturnNotFound()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var item = new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id };
+            dbContext.ItensCardapio.Add(item);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var addRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 999 }
+            }
+        };
+
+        var addResponse = await client.PostAsJsonAsync($"/api/pedidos/{createdPedido.Id}/itens", addRequest);
+        var addContent = await addResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.NotFound, addResponse.StatusCode);
+        Assert.Contains("item do pedido não encontrado no menu.", addContent);
+    }
+
+    [Fact]
+    public async Task AdicionarItens_WithInactiveItem_ShouldReturnNotFound()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var items = new[]
+            {
+                new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id },
+                new ItensCardapio { Nome = "Hamburguer Inativo", Preco = 20.00m, Ativo = false, TipoId = tipo.Id }
+            };
+            dbContext.ItensCardapio.AddRange(items);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var addRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 2 }
+            }
+        };
+
+        var addResponse = await client.PostAsJsonAsync($"/api/pedidos/{createdPedido.Id}/itens", addRequest);
+        var addContent = await addResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.NotFound, addResponse.StatusCode);
+        Assert.Contains("item do pedido não encontrado no menu.", addContent);
+    }
+
+    [Fact]
+    public async Task AdicionarItens_WithDuplicateItem_ShouldReturnBadRequest()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var tipo2 = new TipoItensCardapio { Nome = "Bebida", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo2);
+            await dbContext.SaveChangesAsync();
+
+            var items = new[]
+            {
+                new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id },
+                new ItensCardapio { Nome = "Refrigerante", Preco = 5.00m, Ativo = true, TipoId = tipo2.Id }
+            };
+            dbContext.ItensCardapio.AddRange(items);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var addRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 }
+            }
+        };
+
+        var addResponse = await client.PostAsJsonAsync($"/api/pedidos/{createdPedido.Id}/itens", addRequest);
+        var addContent = await addResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, addResponse.StatusCode);
+        Assert.Contains("não é permitido adicionar o mesmo item mais de uma vez no pedido.", addContent);
+    }
+
+    [Fact]
+    public async Task AdicionarItens_WithDuplicateCategory_ShouldReturnBadRequest()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var items = new[]
+            {
+                new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id },
+                new ItensCardapio { Nome = "Hamburguer G", Preco = 20.00m, Ativo = true, TipoId = tipo.Id }
+            };
+            dbContext.ItensCardapio.AddRange(items);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var addRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 2 }
+            }
+        };
+
+        var addResponse = await client.PostAsJsonAsync($"/api/pedidos/{createdPedido.Id}/itens", addRequest);
+        var addContent = await addResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, addResponse.StatusCode);
+        Assert.Contains("não é permitido mais de um item da mesma categoria no pedido.", addContent);
+    }
+
+    [Fact]
+    public async Task AdicionarItens_WithFinishedPedido_ShouldReturnBadRequest()
+    {
+        await ClearAndSeedDatabaseAsync(async dbContext =>
+        {
+            var tipo = new TipoItensCardapio { Nome = "Hamburguer", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo);
+            await dbContext.SaveChangesAsync();
+
+            var tipo2 = new TipoItensCardapio { Nome = "Bebida", Ativo = true };
+            dbContext.TipoItensCardapio.Add(tipo2);
+            await dbContext.SaveChangesAsync();
+
+            var items = new[]
+            {
+                new ItensCardapio { Nome = "Hamburguer X", Preco = 15.00m, Ativo = true, TipoId = tipo.Id },
+                new ItensCardapio { Nome = "Refrigerante", Preco = 5.00m, Ativo = true, TipoId = tipo2.Id }
+            };
+            dbContext.ItensCardapio.AddRange(items);
+            await dbContext.SaveChangesAsync();
+        });
+
+        var client = _factory.CreateClient();
+
+        var createRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 1 }
+            }
+        };
+
+        var createResponse = await client.PostAsJsonAsync("/api/pedidos", createRequest);
+        var createContent = await createResponse.Content.ReadAsStringAsync();
+        var createdPedido = JsonSerializer.Deserialize<PedidoResponseDto>(createContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var fecharResponse = await client.PostAsync($"/api/pedidos/{createdPedido.Id}/fechar", null);
+        Assert.Equal(HttpStatusCode.OK, fecharResponse.StatusCode);
+
+        var addRequest = new PedidoRequestDto
+        {
+            Itens = new List<ItemPedidoRequestDto>
+            {
+                new ItemPedidoRequestDto { Id = 2 }
+            }
+        };
+
+        var addResponse = await client.PostAsJsonAsync($"/api/pedidos/{createdPedido.Id}/itens", addRequest);
+        var addContent = await addResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, addResponse.StatusCode);
+        Assert.Contains("pedido já foi finalizado, não é possível fazer mais alterações.", addContent);
+    }
+
+    #endregion
+
     #region GET /api/pedidos/{id} Tests
 
     [Fact]
