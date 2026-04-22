@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<ItensCardapio> ItensCardapio { get; set; }
     public DbSet<Pedido> Pedido { get; set; }
     public DbSet<ItemPedido> ItemPedido { get; set; }
+    public DbSet<Desconto> Desconto { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -22,6 +23,7 @@ public class AppDbContext : DbContext
         ConfigureItensCardapio(modelBuilder);
         ConfigurePedido(modelBuilder);
         ConfigureItemPedido(modelBuilder);
+        ConfigureDesconto(modelBuilder);
     }
 
     private void ConfigureTipoItensCardapio(ModelBuilder modelBuilder)
@@ -150,6 +152,24 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.ToTable("tb_itens_pedido");
+        });
+    }
+
+    private void ConfigureDesconto(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Desconto>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.DescontoPorCento)
+                .IsRequired()
+                .HasColumnType("int");
+
+            entity.Property(e => e.Ativo)
+                .HasDefaultValue(true)
+                .HasColumnType("tinyint");
+
+            entity.ToTable("tb_descontos");
         });
     }
 }
