@@ -13,3 +13,7 @@ INSERT INTO tb_itens_cardapio VALUES
 (3,'X Egg',1,1,4.50),
 (4,'Batata Frita',2,1,2.00),
 (5,'Refrigerante',3,1,2.50);
+
+INSERT INTO `goodhamburger_db`.`tb_descontos` (`Id`, `DescontoPorCento`, `Ativo`) VALUES ('1', '20', '1');
+INSERT INTO `goodhamburger_db`.`tb_descontos` (`Id`, `DescontoPorCento`, `Ativo`) VALUES ('2', '15', '1');
+INSERT INTO `goodhamburger_db`.`tb_descontos` (`Id`, `DescontoPorCento`, `Ativo`) VALUES ('3', '10', '1');
