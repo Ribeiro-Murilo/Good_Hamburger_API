@@ -42,16 +42,16 @@ public class PedidosController : ControllerBase
         }
     }
 
-    [HttpPut("api/pedidos/{id}")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [HttpDelete("api/pedidos/{id}/itens/{itemId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult> AddItens(Guid id, [FromBody] PedidoRequestDto request)
+    public async Task<ActionResult> RemoverItem(Guid id, int itemId)
     {
         try
         {
-            await _pedidoService.AddItensAsync(id, request);
-            return NoContent();
+            await _pedidoService.RemoverItemAsync(id, itemId);
+            return Ok();
         }
         catch (InvalidOperationException ex)
         {
@@ -65,15 +65,9 @@ public class PedidosController : ControllerBase
                 return BadRequest(new { mensagem = ex.Message });
             }
 
-            if (ex.Message == "item do pedido não encontrado no menu.")
+            if (ex.Message == "item não encontrado no pedido.")
             {
                 return NotFound(new { mensagem = ex.Message });
-            }
-
-            if (ex.Message == "não é permitido adicionar o mesmo item mais de uma vez no pedido." ||
-                ex.Message == "não é permitido mais de um item da mesma categoria no pedido.")
-            {
-                return BadRequest(new { mensagem = ex.Message });
             }
 
             throw;

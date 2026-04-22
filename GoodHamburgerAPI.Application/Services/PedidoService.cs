@@ -80,7 +80,7 @@ public class PedidoService : IPedidoService
         return new PedidoResponseDto { Id = pedidoId };
     }
 
-    public async Task AddItensAsync(Guid pedidoId, PedidoRequestDto request)
+    public async Task RemoverItemAsync(Guid pedidoId, int itemId)
     {
         var pedido = await _redisService.GetAsync<Pedido>($"pedido:{pedidoId}");
 
@@ -96,53 +96,17 @@ public class PedidoService : IPedidoService
             throw new InvalidOperationException("pedido não encontrado.");
         }
 
-        var idsVistos = new HashSet<int>();
-        var tiposVistos = new HashSet<int>();
-        var itensAtualizados = new List<ItemPedido>();
-        decimal valorTotal = 0;
+        var item = pedido.Itens.FirstOrDefault(i => i.Id == itemId);
 
-        foreach (var itemRequest in request.Itens)
+        if (item == null)
         {
-            if (idsVistos.Contains(itemRequest.Id))
-            {
-                throw new InvalidOperationException("não é permitido adicionar o mesmo item mais de uma vez no pedido.");
-            }
-
-            var item = await _context.ItensCardapio.FirstOrDefaultAsync(i => i.Id == itemRequest.Id);
-
-            if (item == null)
-            {
-                throw new InvalidOperationException("item do pedido não encontrado no menu.");
-            }
-
-            if (!item.Ativo)
-            {
-                throw new InvalidOperationException("item do pedido não encontrado no menu.");
-            }
-
-            if (tiposVistos.Contains(item.TipoId))
-            {
-                throw new InvalidOperationException("não é permitido mais de um item da mesma categoria no pedido.");
-            }
-
-            idsVistos.Add(itemRequest.Id);
-            tiposVistos.Add(item.TipoId);
-
-            itensAtualizados.Add(new ItemPedido
-            {
-                Id = item.Id,
-                TipoId = item.TipoId,
-                Nome = item.Nome,
-                Valor = item.Preco
-            });
-
-            valorTotal += item.Preco;
+            throw new InvalidOperationException("item não encontrado no pedido.");
         }
 
-        pedido.Itens = itensAtualizados;
+        pedido.Itens.Remove(item);
         pedido.AtualizadoEm = DateTime.UtcNow;
-        pedido.ValorSemDesconto = valorTotal;
-        pedido.ValorFinal = valorTotal;
+        pedido.ValorSemDesconto = pedido.Itens.Sum(i => i.Valor);
+        pedido.ValorFinal = pedido.ValorSemDesconto;
 
         await _redisService.SetAsync($"pedido:{pedidoId}", pedido);
     }
