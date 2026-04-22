@@ -137,6 +137,10 @@ public class AppDbContext : DbContext
                 .IsRequired()
                 .HasColumnType("int");
 
+            entity.Property(e => e.ItensCardapioId)
+                .IsRequired()
+                .HasColumnType("int");
+
             entity.Property(e => e.Nome)
                 .IsRequired()
                 .HasMaxLength(255)
@@ -150,6 +154,11 @@ public class AppDbContext : DbContext
                 .WithMany(p => p.Itens)
                 .HasForeignKey(e => e.PedidoId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.ItensCardapio)
+                .WithMany()
+                .HasForeignKey(e => e.ItensCardapioId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             entity.ToTable("tb_itens_pedido");
         });

@@ -53,8 +53,8 @@ public class PedidoService : IPedidoService
 
             itensComDetalhes.Add(new ItemPedido
             {
-                Id = item.Id,
                 TipoId = item.TipoId,
+                ItensCardapioId = item.Id,
                 Nome = item.Nome,
                 Valor = item.Preco
             });
@@ -102,7 +102,7 @@ public class PedidoService : IPedidoService
             throw new InvalidOperationException("pedido não encontrado.");
         }
 
-        var item = pedido.Itens.FirstOrDefault(i => i.Id == itemId);
+        var item = pedido.Itens.FirstOrDefault(i => i.ItensCardapioId == itemId);
 
         if (item == null)
         {
@@ -134,6 +134,7 @@ public class PedidoService : IPedidoService
         foreach (var item in pedido.Itens)
         {
             item.PedidoId = pedido.Id;
+            item.Id = 0;
         }
 
         _context.Pedido.Add(pedido);
@@ -164,7 +165,7 @@ public class PedidoService : IPedidoService
                 Id = pedidoBanco.Id,
                 Itens = pedidoBanco.Itens.Select(i => new ItemPedidoResponseDto
                 {
-                    Id = i.Id,
+                    Id = i.ItensCardapioId,
                     Nome = i.Nome,
                     Valor = i.Valor
                 }).ToList(),
@@ -182,7 +183,7 @@ public class PedidoService : IPedidoService
             Id = pedido.Id,
             Itens = pedido.Itens.Select(i => new ItemPedidoResponseDto
             {
-                Id = i.Id,
+                Id = i.ItensCardapioId,
                 Nome = i.Nome,
                 Valor = i.Valor
             }).ToList(),
@@ -248,8 +249,8 @@ public class PedidoService : IPedidoService
 
             pedido.Itens.Add(new ItemPedido
             {
-                Id = item.Id,
                 TipoId = item.TipoId,
+                ItensCardapioId = item.Id,
                 Nome = item.Nome,
                 Valor = item.Preco
             });
