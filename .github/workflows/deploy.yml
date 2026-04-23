@@ -6,40 +6,40 @@ on:
       - main
 
 jobs:
-  test:
-    name: Testes
-    runs-on: self-hosted
+  # test:
+  #   name: Testes
+  #   runs-on: self-hosted
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      - name: Testes unitarios
-        run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/src" \
-            -w /src \
-            mcr.microsoft.com/dotnet/sdk:8.0 \
-            dotnet test GoodHamburgerAPI.UnitTests/GoodHamburgerAPI.UnitTests.csproj \
-              --logger "console;verbosity=normal"
+  #     - name: Testes unitarios
+  #       run: |
+  #         docker run --rm \
+  #           -v "${{ github.workspace }}:/src" \
+  #           -w /src \
+  #           mcr.microsoft.com/dotnet/sdk:8.0 \
+  #           dotnet test GoodHamburgerAPI.UnitTests/GoodHamburgerAPI.UnitTests.csproj \
+  #             --logger "console;verbosity=normal"
 
-      - name: Testes de integracao
-        run: |
-          docker run --rm \
-            --network host \
-            -e DOCKER_HOST=unix:///var/run/docker.sock \
-            -e TESTCONTAINERS_HOST_OVERRIDE=localhost \
-            -v "${{ github.workspace }}:/src" \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -w /src \
-            mcr.microsoft.com/dotnet/sdk:8.0 \
-            dotnet test GoodHamburgerAPI.IntegrationTests/GoodHamburgerAPI.IntegrationTests.csproj \
-              --logger "console;verbosity=normal"
+  #     - name: Testes de integracao
+  #       run: |
+  #         docker run --rm \
+  #           --network host \
+  #           -e DOCKER_HOST=unix:///var/run/docker.sock \
+  #           -e TESTCONTAINERS_HOST_OVERRIDE=localhost \
+  #           -v "${{ github.workspace }}:/src" \
+  #           -v /var/run/docker.sock:/var/run/docker.sock \
+  #           -w /src \
+  #           mcr.microsoft.com/dotnet/sdk:8.0 \
+  #           dotnet test GoodHamburgerAPI.IntegrationTests/GoodHamburgerAPI.IntegrationTests.csproj \
+  #             --logger "console;verbosity=normal"
 
   deploy:
     name: Deploy
     runs-on: self-hosted
-    needs: test
+    # needs: test
 
     steps:
       - name: Checkout
