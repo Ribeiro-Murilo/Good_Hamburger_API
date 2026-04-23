@@ -1,0 +1,50 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Testes
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Testes unitarios
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            -w /src \
+            mcr.microsoft.com/dotnet/sdk:8.0 \
+            dotnet test GoodHamburgerAPI.UnitTests/GoodHamburgerAPI.UnitTests.csproj \
+              --logger "console;verbosity=normal"
+
+      - name: Testes de integracao
+        run: |
+          docker run --rm \
+            --network host \
+            -v "${{ github.workspace }}:/src" \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -w /src \
+            mcr.microsoft.com/dotnet/sdk:8.0 \
+            dotnet test GoodHamburgerAPI.IntegrationTests/GoodHamburgerAPI.IntegrationTests.csproj \
+              --logger "console;verbosity=normal"
+
+  deploy:
+    name: Deploy
+    runs-on: self-hosted
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build e deploy
+        run: docker compose up --build -d
+
+      - name: Limpar imagens antigas
+        run: docker image prune -f
