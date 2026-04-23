@@ -46,7 +46,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build e deploy
-        run: docker compose up --build -d
+        run: docker-compose up --build -d
 
       - name: Limpar imagens antigas
         run: docker image prune -f
