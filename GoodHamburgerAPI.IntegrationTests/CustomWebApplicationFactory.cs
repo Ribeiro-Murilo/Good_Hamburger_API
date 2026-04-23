@@ -15,6 +15,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
 {
     private readonly MySqlContainer _mySqlContainer = new MySqlBuilder()
         .WithImage("mysql:8.0")
+        .WithCommand("--innodb-use-native-aio=0")
         .Build();
 
     private readonly RedisContainer _redisContainer = new RedisBuilder()
