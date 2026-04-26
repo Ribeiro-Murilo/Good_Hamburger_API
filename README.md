@@ -19,3 +19,10 @@ Somos a “Good Hamburger” e precisamos de um sistema para registrar os pedido
 - Calcular corretamente o desconto, subtotal e total final de cada pedido, seguindo as regras acima.
 - Validar erros e retornar respostas claras (ex.: itens duplicados, pedido inválido, recurso não encontrado).
 - Expor também um endpoint para consultar o cardápio.
+
+# O que foi deixado de fora
+ - Auth
+ - Comunicação pós pedido fechado
+ - Ambiente administrativo para
+    - Cadastrar/inativar novos itens
+    - Inativar descontos
